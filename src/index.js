@@ -1,118 +1,405 @@
-const SECRET = "CAMBIA_ESTA_CLAVE";
+/**
+ * FÉNIX STREAM WORKER V1
+ * Token + sesiones + reproducción
+ */
 
+const SECRET = "CAMBIA_ESTA_CLAVE_SEGURA";
+
+
+// Contenido de prueba
 const VIDEOS = {
-  pelicula1:
-  "https://hugh.cdn.rumble.cloud/video/fwe2/74/s8/2/w/W/I/Y/wWIYA.aaa.mkv"
+
+  pelicula1:{
+    title:"Película Demo",
+    duration:8100,
+    url:
+    "https://hugh.cdn.rumble.cloud/video/fwe2/74/s8/2/w/W/I/Y/wWIYA.aaa.mkv"
+  }
+
 };
 
 
-async function createToken(id){
+// Sesiones temporales
+const sessions = new Map();
 
-  const exp = Math.floor(Date.now()/1000) + (60*60*4);
 
-  const data = `${id}.${exp}`;
 
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(SECRET),
-    {name:"HMAC", hash:"SHA-256"},
-    false,
-    ["sign"]
-  );
+/*
+ Crear firma HMAC
+*/
+async function sign(data){
 
-  const sig = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    new TextEncoder().encode(data)
-  );
+const key =
+await crypto.subtle.importKey(
+"raw",
+new TextEncoder().encode(SECRET),
+{
+ name:"HMAC",
+ hash:"SHA-256"
+},
+false,
+["sign"]
+);
 
-  const token =
-    btoa(data+"."+Array.from(new Uint8Array(sig))
-    .map(b=>b.toString(16).padStart(2,"0"))
-    .join(""));
 
-  return token;
+const signature =
+await crypto.subtle.sign(
+"HMAC",
+key,
+new TextEncoder().encode(data)
+);
+
+
+return btoa(
+String.fromCharCode(
+...new Uint8Array(signature)
+));
+
+}
+
+
+
+/*
+ Crear token
+*/
+async function createToken(session){
+
+
+const exp =
+Math.floor(Date.now()/1000)
++
+(session.duration + 1800);
+
+
+const payload =
+`${session.id}.${session.content}.${exp}`;
+
+
+const signature =
+await sign(payload);
+
+
+return btoa(
+payload+"."+signature
+);
+
+
 }
 
 
-async function verifyToken(token,id){
 
-  try{
+/*
+ Validar token
+*/
+function decodeToken(token){
 
-    const raw = atob(token);
 
-    const parts = raw.split(".");
+try{
 
-    const exp = Number(parts[1]);
+const raw =
+atob(token);
 
-    if(Date.now()/1000 > exp)
-      return false;
 
-    return true;
+const parts =
+raw.split(".");
 
-  }catch(e){
-    return false;
-  }
+
+return {
+
+id:parts[0],
+content:parts[1],
+exp:Number(parts[2])
+
+};
+
+
+}catch{
+
+return null;
 
 }
+
+}
+
+
+
 
 
 export default {
 
+
 async fetch(request){
 
-const url = new URL(request.url);
+
+const url =
+new URL(request.url);
 
 
-if(url.pathname==="/generate"){
 
- const token =
- await createToken("pelicula1");
+/*
+ INICIAR REPRODUCCIÓN
 
- return Response.json({
-   url:
-   `/play?id=pelicula1&token=${encodeURIComponent(token)}`
- });
+/play/start?id=pelicula1
+&user=1
+&device=roku01
+
+*/
+
+if(url.pathname==="/play/start"){
+
+
+const content =
+url.searchParams.get("id");
+
+
+const user =
+url.searchParams.get("user");
+
+
+const device =
+url.searchParams.get("device");
+
+
+
+if(!VIDEOS[content])
+return new Response(
+"Contenido no existe",
+{status:404}
+);
+
+
+
+const sessionId =
+crypto.randomUUID();
+
+
+
+const session={
+
+id:sessionId,
+
+user,
+
+device,
+
+content,
+
+position:0,
+
+duration:
+VIDEOS[content].duration,
+
+created:
+Date.now()
+
+};
+
+
+
+const token =
+await createToken(session);
+
+
+
+session.token=token;
+
+
+
+sessions.set(
+sessionId,
+session
+);
+
+
+
+return Response.json({
+
+session:sessionId,
+
+stream:
+
+`${url.origin}/play/video?session=${sessionId}&token=${encodeURIComponent(token)}`,
+
+resume:0
+
+});
+
 
 }
 
 
-if(url.pathname==="/play"){
-
- const id=url.searchParams.get("id");
- const token=url.searchParams.get("token");
 
 
- if(!id || !token)
- return new Response("Falta acceso",{status:401});
+
+/*
+ REPRODUCIR VIDEO
+
+*/
+
+if(url.pathname==="/play/video"){
 
 
- const ok=
- await verifyToken(token,id);
+const sessionId =
+url.searchParams.get("session");
 
 
- if(!ok)
- return new Response("Token expirado",{status:403});
+const token =
+url.searchParams.get("token");
 
 
- const video=VIDEOS[id];
+
+const data =
+decodeToken(token);
 
 
- if(!video)
- return new Response("No existe",{status:404});
+
+if(!data)
+return new Response(
+"Token inválido",
+{status:403}
+);
 
 
- return fetch(video,{
-   headers:{
-    "Range":
-    request.headers.get("Range") || ""
-   }
- });
+
+if(Date.now()/1000 > data.exp)
+return new Response(
+"Token expirado",
+{status:403}
+);
+
+
+
+const session =
+sessions.get(sessionId);
+
+
+
+if(!session)
+return new Response(
+"Sesión no encontrada",
+{status:404}
+);
+
+
+
+const video =
+VIDEOS[session.content];
+
+
+
+return fetch(
+video.url,
+{
+
+headers:{
+
+"Range":
+request.headers.get("Range")
+||
+""
+
+}
+
+});
+
 
 }
 
 
-return new Response("Fenix Stream Worker");
+
+
+
+/*
+ GUARDAR POSICIÓN
+
+/play/save
+
+*/
+
+if(url.pathname==="/play/save"){
+
+
+const body =
+await request.json();
+
+
+const session =
+sessions.get(body.session);
+
+
+
+if(session){
+
+session.position =
+body.position;
+
+sessions.set(
+body.session,
+session
+);
+
+}
+
+
+
+return Response.json({
+
+ok:true
+
+});
+
+
+}
+
+
+
+
+/*
+ CERRAR SESIÓN
+
+*/
+
+if(url.pathname==="/play/stop"){
+
+
+const id =
+url.searchParams.get("session");
+
+
+const session =
+sessions.get(id);
+
+
+if(session){
+
+session.closed=true;
+
+sessions.set(
+id,
+session
+);
+
+}
+
+
+
+return Response.json({
+
+ok:true
+
+});
+
+
+}
+
+
+
+
+
+return new Response(
+"Fenix Stream Worker activo"
+);
+
 
 }
 
