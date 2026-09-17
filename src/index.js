@@ -1,36 +1,35 @@
 export default {
 async fetch(){
 
-const page = await fetch(
-"https://deportes.ksdjugfssddeports.com/",
-{
+const url="https://deportes.ksdjugfssddeports.com/";
+
+const r=await fetch(url,{
 headers:{
 "User-Agent":
 "Mozilla/5.0 (Linux; Android 13) Chrome/120 Mobile Safari/537.36"
 }
 });
 
-const cookies = page.headers.get("set-cookie") || "";
+const html=await r.text();
 
-const playlist = await fetch(
-"https://deportes.ksdjugfssddeports.com/playlist.php?id=39_&sig=26b773d9d875f444a07cc001157928e5c9932fab6dd09e77e24ae2a7e64567cc",
-{
-headers:{
-"User-Agent":
-"Mozilla/5.0 (Linux; Android 13) Chrome/120 Mobile Safari/537.36",
+const links=[
+...html.matchAll(/https?:\/\/[^"'\\s]+/g)
+].map(x=>x[0]);
 
-"Referer":
-"https://deportes.ksdjugfssddeports.com/",
+const scripts=[
+...html.matchAll(/<script[^>]+src=["']([^"']+)/g)
+].map(x=>x[1]);
 
-"Cookie":cookies
-}
-});
+const m3u=[
+...html.matchAll(/[^\s"'<>]+\.m3u8[^\s"'<>]*/g)
+].map(x=>x[0]);
 
 return new Response(JSON.stringify({
-pagina:page.status,
-cookies,
-playlist:playlist.status,
-resultado:(await playlist.text()).slice(0,500)
+status:r.status,
+links,
+scripts,
+m3u8:m3u,
+fragmento:html.substring(0,3000)
 },null,2),{
 headers:{
 "content-type":"application/json"
