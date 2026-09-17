@@ -1,39 +1,41 @@
 export default {
- async fetch(request) {
+async fetch(){
 
-  const url = "https://deportes.ksdjugfssddeports.com/playlist.php?id=39_&sig=26b773d9d875f444a07cc001157928e5c9932fab6dd09e77e24ae2a7e64567cc";
+const page = await fetch(
+"https://deportes.ksdjugfssddeports.com/",
+{
+headers:{
+"User-Agent":
+"Mozilla/5.0 (Linux; Android 13) Chrome/120 Mobile Safari/537.36"
+}
+});
 
-  const r = await fetch(url,{
-    method:"GET",
-    headers:{
-      "User-Agent":
-      "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36",
+const cookies = page.headers.get("set-cookie") || "";
 
-      "Accept":
-      "application/vnd.apple.mpegurl,application/x-mpegURL,*/*",
+const playlist = await fetch(
+"https://deportes.ksdjugfssddeports.com/playlist.php?id=39_&sig=26b773d9d875f444a07cc001157928e5c9932fab6dd09e77e24ae2a7e64567cc",
+{
+headers:{
+"User-Agent":
+"Mozilla/5.0 (Linux; Android 13) Chrome/120 Mobile Safari/537.36",
 
-      "Referer":
-      "https://deportes.ksdjugfssddeports.com/",
+"Referer":
+"https://deportes.ksdjugfssddeports.com/",
 
-      "Origin":
-      "https://deportes.ksdjugfssddeports.com"
-    },
-    redirect:"follow"
-  });
+"Cookie":cookies
+}
+});
 
+return new Response(JSON.stringify({
+pagina:page.status,
+cookies,
+playlist:playlist.status,
+resultado:(await playlist.text()).slice(0,500)
+},null,2),{
+headers:{
+"content-type":"application/json"
+}
+});
 
-  const texto = await r.text();
-
-  return new Response(JSON.stringify({
-    status:r.status,
-    url:r.url,
-    headers:Object.fromEntries(r.headers),
-    contenido:texto.substring(0,1000)
-  },null,2),{
-    headers:{
-      "content-type":"application/json"
-    }
-  });
-
- }
+}
 }
