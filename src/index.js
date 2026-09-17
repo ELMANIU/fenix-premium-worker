@@ -1,92 +1,91 @@
-const PREMIUM_SOURCE =
+const PLAYLIST_URL =
 "https://deportes.ksdjugfssddeports.com/playlist.php?id=39_&sig=92d0fe29f80b6581c49c461bfb789195327c5dc7edd1a21ac9ea8a363a78b6a7";
 
+const HOME_URL =
+"https://deportes.ksdjugfssddeports.com/";
 
-const SOURCE_HEADERS = {
+
+const BROWSER_HEADERS = {
   "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36",
 
-  "Referer":
-    "https://deportes.ksdjugfssddeports.com/",
+  "Accept":
+  "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 
-  "Origin":
-    "https://deportes.ksdjugfssddeports.com"
+  "Accept-Language":
+  "es-MX,es;q=0.9,en;q=0.8",
+
+  "Connection":
+  "keep-alive"
 };
 
 
 
-async function getPremiumSource(){
+async function getCookies(){
 
-  return await fetch(PREMIUM_SOURCE,{
-    method:"GET",
-    redirect:"follow",
-    headers:SOURCE_HEADERS
+  const response = await fetch(HOME_URL,{
+    headers:BROWSER_HEADERS,
+    redirect:"follow"
   });
+
+
+  const cookies =
+  response.headers.get("set-cookie") || "";
+
+
+  return cookies;
 
 }
 
 
 
-async function stream(request){
+async function requestPlaylist(){
 
-  const response = await getPremiumSource();
-
-  const contentType =
-    response.headers.get("content-type") || "";
-
-  const body =
-    await response.text();
+  const cookies = await getCookies();
 
 
-  return new Response(body,{
-    status:response.status,
-    headers:{
-      "content-type":
-      contentType.includes("mpegurl")
-      ? "application/vnd.apple.mpegurl"
-      : "application/vnd.apple.mpegurl",
+  const headers = {
 
-      "access-control-allow-origin":"*",
+    ...BROWSER_HEADERS,
 
-      "cache-control":
-      "no-cache, no-store"
-    }
-  });
+    "Referer":
+    HOME_URL,
 
-}
+    "Origin":
+    "https://deportes.ksdjugfssddeports.com",
 
+    "Accept":
+    "application/vnd.apple.mpegurl,application/x-mpegURL,*/*",
 
+    "Cookie":
+    cookies
 
-async function test(){
+  };
+
 
   const response =
-    await getPremiumSource();
+  await fetch(PLAYLIST_URL,{
+    headers,
+    redirect:"follow"
+  });
+
 
   const text =
-    await response.text();
+  await response.text();
 
 
-  return Response.json({
-
-    status:response.status,
-
-    finalUrl:response.url,
-
-    contentType:
-    response.headers.get("content-type"),
-
-    length:text.length,
-
-    preview:
-    text.substring(0,500)
-
-  });
+  return {
+    response,
+    text,
+    cookies
+  };
 
 }
 
 
 
 export default {
+
 
 async fetch(request){
 
@@ -99,30 +98,13 @@ if(url.pathname==="/"){
 
 return Response.json({
 
-service:
-"Fenix Premium Worker",
+service:"Fenix Premium Worker v2",
 
-version:
-"1.0.0",
+status:"online",
 
-status:
-"online",
-
-stream:
-"/premium/live.m3u8",
-
-test:
-"/premium/test"
+test:"/premium/test"
 
 });
-
-}
-
-
-
-if(url.pathname==="/premium/live.m3u8"){
-
-return stream(request);
 
 }
 
@@ -130,17 +112,44 @@ return stream(request);
 
 if(url.pathname==="/premium/test"){
 
-return test();
+
+const result =
+await requestPlaylist();
+
+
+return Response.json({
+
+status:
+result.response.status,
+
+finalUrl:
+result.response.url,
+
+contentType:
+result.response.headers.get("content-type"),
+
+cookies:
+result.cookies,
+
+length:
+result.text.length,
+
+preview:
+result.text.substring(0,1000)
+
+});
+
 
 }
 
 
 
 return new Response(
-"Ruta no encontrada",
+"Not Found",
 {
 status:404
 });
+
 
 }
 
