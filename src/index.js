@@ -3,7 +3,7 @@
  * Token + sesiones + reproducción
  */
 
-const SECRET = "CAMBIA_ESTA_CLAVE_SEGURA";
+const SECRET = "FenixTV_2026_Segura_9981";
 
 
 // Contenido de prueba
