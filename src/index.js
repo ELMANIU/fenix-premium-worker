@@ -1,75 +1,179 @@
 export default {
   async fetch(request) {
 
-    const target = 
+    const target =
       "https://deportes.ksdjugfssddeports.com/playlist.php?id=39_&sig=92d0fe29f80b6581c49c461bfb789195327c5dc7edd1a21ac9ea8a363a78b6a7";
 
-    const response = await fetch(target, {
-      headers: {
-        "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
-        "Accept":
-        "text/html,application/xhtml+xml"
-      }
-    });
+
+    let response;
+
+    try {
+
+      response = await fetch(target, {
+
+        method: "GET",
+
+        headers: {
+
+          "User-Agent":
+          "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36",
+
+          "Accept":
+          "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+
+          "Accept-Language":
+          "es-MX,es;q=0.9,en;q=0.8",
+
+          "Referer":
+          "https://deportes.ksdjugfssddeports.com/",
+
+          "Origin":
+          "https://deportes.ksdjugfssddeports.com",
+
+          "Cache-Control":
+          "no-cache",
+
+          "Pragma":
+          "no-cache",
+
+          "Upgrade-Insecure-Requests":
+          "1",
+
+          "Sec-Fetch-Dest":
+          "document",
+
+          "Sec-Fetch-Mode":
+          "navigate",
+
+          "Sec-Fetch-Site":
+          "same-origin"
+
+        }
+
+      });
+
+
+    } catch(error) {
+
+      return new Response(JSON.stringify({
+
+        error:"fetch_failed",
+
+        message:error.message
+
+      },null,2),{
+
+        headers:{
+          "content-type":"application/json"
+        }
+
+      });
+
+    }
+
 
 
     const html = await response.text();
 
 
-    const patterns = [
-      /\.m3u8[^"' ]*/gi,
-      /https?:\/\/[^"' ]+/gi,
-      /\/[^"' ]*(playlist|stream|live|api)[^"' ]*/gi,
-      /token[^"' ]*/gi,
-      /key[^"' ]*/gi,
-      /fetch\([^)]*/gi,
-      /xhr[^ ]*/gi,
-      /ajax[^ ]*/gi
+
+    let encontrados = [];
+
+
+
+    const patrones = [
+
+      /https?:\/\/[^\s"'<>]+/gi,
+
+      /[^"'<> ]+\.m3u8[^"'<> ]*/gi,
+
+      /[^"'<> ]+playlist[^"'<> ]*/gi,
+
+      /[^"'<> ]+stream[^"'<> ]*/gi,
+
+      /[^"'<> ]+live[^"'<> ]*/gi,
+
+      /[^"'<> ]+token[^"'<> ]*/gi,
+
+      /[^"'<> ]+key[^"'<> ]*/gi,
+
+      /fetch\s*\([^)]*/gi,
+
+      /XMLHttpRequest/gi,
+
+      /ajax/gi,
+
+      /api\/[^"'<> ]+/gi
+
     ];
 
 
-    let results = [];
 
+    for(const regex of patrones){
 
-    for (const regex of patterns) {
+      const datos = html.match(regex);
 
-      const found = html.match(regex);
+      if(datos){
 
-      if(found){
-        results.push(...found);
+        encontrados.push(...datos);
+
       }
 
     }
 
 
-    results = [...new Set(results)];
+
+    encontrados = [...new Set(encontrados)];
+
+
+
+    const scripts = [
+
+      ...(html.match(/<script[\s\S]*?<\/script>/gi) || [])
+
+    ];
+
+
+
+    const cookies = response.headers.get("set-cookie");
+
 
 
     return new Response(
+
       JSON.stringify({
 
-        status: response.status,
+        estado: response.status,
 
-        htmlLength: html.length,
+        url: target,
 
-        scripts:
-        (html.match(/<script/gi)||[]).length,
+        longitudHTML: html.length,
 
-        encontrados: results,
+        scriptsEncontrados: scripts.length,
 
-        preview:
-        html.substring(0,500)
+        cookies,
+
+        encontrados,
+
+        headers: Object.fromEntries(response.headers),
+
+        preview: html.substring(0,800)
 
       },null,2),
 
       {
+
         headers:{
-          "content-type":
-          "application/json"
+
+          "content-type":"application/json;charset=UTF-8"
+
         }
+
       }
+
     );
 
+
   }
+
 };
