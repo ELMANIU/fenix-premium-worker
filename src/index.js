@@ -1,84 +1,118 @@
-const PLAYLIST_URL =
-"https://deportes.ksdjugfssddeports.com/playlist.php?id=39_&sig=92d0fe29f80b6581c49c461bfb789195327c5dc7edd1a21ac9ea8a363a78b6a7";
+const DOMAIN = "https://deportes.ksdjugfssddeports.com";
 
-const HOME_URL =
-"https://deportes.ksdjugfssddeports.com/";
+const PLAYLIST =
+DOMAIN +
+"/playlist.php?id=39_&sig=92d0fe29f80b6581c49c461bfb789195327c5dc7edd1a21ac9ea8a363a78b6a7";
 
 
 const BROWSER_HEADERS = {
   "User-Agent":
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
 
   "Accept":
-  "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+  "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
 
   "Accept-Language":
   "es-MX,es;q=0.9,en;q=0.8",
 
-  "Connection":
-  "keep-alive"
+  "Cache-Control":
+  "no-cache",
+
+  "Pragma":
+  "no-cache",
+
+  "DNT":
+  "1",
+
+  "Sec-Fetch-Dest":
+  "document",
+
+  "Sec-Fetch-Mode":
+  "navigate",
+
+  "Sec-Fetch-Site":
+  "none"
 };
 
 
 
-async function getCookies(){
+async function request(url, extra={}){
 
-  const response = await fetch(HOME_URL,{
-    headers:BROWSER_HEADERS,
-    redirect:"follow"
-  });
-
-
-  const cookies =
-  response.headers.get("set-cookie") || "";
-
-
-  return cookies;
+return await fetch(url,{
+  redirect:"follow",
+  headers:{
+    ...BROWSER_HEADERS,
+    ...extra
+  }
+});
 
 }
 
 
 
-async function requestPlaylist(){
+async function debugHome(){
 
-  const cookies = await getCookies();
+const res =
+await request(DOMAIN+"/");
 
-
-  const headers = {
-
-    ...BROWSER_HEADERS,
-
-    "Referer":
-    HOME_URL,
-
-    "Origin":
-    "https://deportes.ksdjugfssddeports.com",
-
-    "Accept":
-    "application/vnd.apple.mpegurl,application/x-mpegURL,*/*",
-
-    "Cookie":
-    cookies
-
-  };
+const text =
+await res.text();
 
 
-  const response =
-  await fetch(PLAYLIST_URL,{
-    headers,
-    redirect:"follow"
-  });
+return {
+ status:res.status,
+ url:res.url,
+ type:res.headers.get("content-type"),
+ server:res.headers.get("server"),
+ cookies:res.headers.get("set-cookie"),
+ size:text.length,
+ preview:text.substring(0,500)
+};
+
+}
 
 
-  const text =
-  await response.text();
+
+async function debugPlaylist(){
+
+const home =
+await request(DOMAIN+"/");
 
 
-  return {
-    response,
-    text,
-    cookies
-  };
+const cookie =
+home.headers.get("set-cookie") || "";
+
+
+const res =
+await request(PLAYLIST,{
+ "Referer":DOMAIN+"/",
+ "Origin":DOMAIN,
+ "Accept":
+ "application/vnd.apple.mpegurl,application/x-mpegURL,*/*",
+ "Cookie":cookie
+});
+
+
+const text =
+await res.text();
+
+
+return {
+
+status:res.status,
+
+url:res.url,
+
+type:
+res.headers.get("content-type"),
+
+cookies:cookie,
+
+size:text.length,
+
+preview:text.substring(0,500)
+
+};
 
 }
 
@@ -86,70 +120,47 @@ async function requestPlaylist(){
 
 export default {
 
-
 async fetch(request){
 
 const url =
 new URL(request.url);
 
 
-
 if(url.pathname==="/"){
 
 return Response.json({
-
-service:"Fenix Premium Worker v2",
-
-status:"online",
-
-test:"/premium/test"
-
+service:"Fenix Premium Debug v3",
+routes:[
+"/home",
+"/playlist"
+]
 });
 
 }
 
 
 
-if(url.pathname==="/premium/test"){
+if(url.pathname==="/home"){
 
-
-const result =
-await requestPlaylist();
-
-
-return Response.json({
-
-status:
-result.response.status,
-
-finalUrl:
-result.response.url,
-
-contentType:
-result.response.headers.get("content-type"),
-
-cookies:
-result.cookies,
-
-length:
-result.text.length,
-
-preview:
-result.text.substring(0,1000)
-
-});
-
+return Response.json(
+await debugHome()
+);
 
 }
 
 
 
-return new Response(
-"Not Found",
-{
-status:404
-});
+if(url.pathname==="/playlist"){
 
+return Response.json(
+await debugPlaylist()
+);
+
+}
+
+
+
+return new Response("404");
 
 }
 
